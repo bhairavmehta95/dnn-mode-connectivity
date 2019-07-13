@@ -24,27 +24,39 @@ class Transforms:
 
         class ResNet:
 
+            corrupt = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.Scale(8),
+                transforms.Scale(32),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                # transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+            ])
+
             train = transforms.Compose([
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+                # transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
             ])
 
             test = transforms.Compose([
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
+                # transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010]),
             ])
 
     CIFAR100 = CIFAR10
 
 
 def loaders(dataset, path, batch_size, num_workers, transform_name, use_test=False,
-            shuffle_train=True):
+            shuffle_train=True, corrupt=False):
     ds = getattr(torchvision.datasets, dataset)
     path = os.path.join(path, dataset.lower())
     transform = getattr(getattr(Transforms, dataset), transform_name)
-    train_set = ds(path, train=True, download=True, transform=transform.train)
+
+
+    train_transform = transform.train if not corrupt else transform.corrupt
+    train_set = ds(path, train=True, download=True, transform=train_transform)
 
     if use_test:
         print('You are going to run models on the test set. Are you sure?')

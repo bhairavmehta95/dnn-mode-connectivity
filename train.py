@@ -13,14 +13,14 @@ import utils
 
 
 parser = argparse.ArgumentParser(description='DNN curve training')
-parser.add_argument('--dir', type=str, default='/tmp/curve/', metavar='DIR',
+parser.add_argument('--dir', type=str, default='/tmp/curve/corrupt-epochs-', metavar='DIR',
                     help='training directory (default: /tmp/curve/)')
 
 parser.add_argument('--dataset', type=str, default='CIFAR10', metavar='DATASET',
                     help='dataset name (default: CIFAR10)')
 parser.add_argument('--use_test', action='store_true',
                     help='switches between validation and test set (default: validation)')
-parser.add_argument('--transform', type=str, default='VGG', metavar='TRANSFORM',
+parser.add_argument('--transform', type=str, default='ResNet', metavar='TRANSFORM',
                     help='transform name (default: VGG)')
 parser.add_argument('--data_path', type=str, default=None, metavar='PATH',
                     help='path to datasets location (default: None)')
@@ -50,20 +50,22 @@ parser.add_argument('--init_linear_off', dest='init_linear', action='store_false
 parser.add_argument('--resume', type=str, default=None, metavar='CKPT',
                     help='checkpoint to resume training from (default: None)')
 
-parser.add_argument('--epochs', type=int, default=200, metavar='N',
-                    help='number of epochs to train (default: 200)')
+parser.add_argument('--epochs', type=int, default=160, metavar='N',
+                    help='number of epochs to train (default: 160)')
 parser.add_argument('--save_freq', type=int, default=50, metavar='N',
                     help='save frequency (default: 50)')
-parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='initial learning rate (default: 0.01)')
-parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+parser.add_argument('--momentum', type=float, default=0.0, metavar='M',
                     help='SGD momentum (default: 0.9)')
-parser.add_argument('--wd', type=float, default=1e-4, metavar='WD',
+parser.add_argument('--wd', type=float, default=0.0005, metavar='WD',
                     help='weight decay (default: 1e-4)')
 
+parser.add_argument('--corrupt-epochs', type=int, default=0, metavar='CE', help='number of epochs to show corrupt data')
 parser.add_argument('--seed', type=int, default=1, metavar='S', help='random seed (default: 1)')
 
 args = parser.parse_args()
+args.dir += '{}/'.format(args.corrupt_epochs)
 
 os.makedirs(args.dir, exist_ok=True)
 with open(os.path.join(args.dir, 'command.sh'), 'w') as f:
@@ -80,7 +82,8 @@ loaders, num_classes = data.loaders(
     args.batch_size,
     args.num_workers,
     args.transform,
-    args.use_test
+    args.use_test,
+    corrupt=True
 )
 
 architecture = getattr(models, args.model)
@@ -114,15 +117,9 @@ else:
 model.cuda()
 
 
-def learning_rate_schedule(base_lr, epoch, total_epochs):
+def learning_rate_schedule(lr, epoch, total_epochs):
     alpha = epoch / total_epochs
-    if alpha <= 0.5:
-        factor = 1.0
-    elif alpha <= 0.9:
-        factor = 1.0 - (alpha - 0.5) / 0.4 * 0.99
-    else:
-        factor = 0.01
-    return factor * base_lr
+    return lr * 0.97
 
 
 criterion = F.cross_entropy
@@ -154,10 +151,37 @@ utils.save_checkpoint(
 
 has_bn = utils.check_bn(model)
 test_res = {'loss': None, 'accuracy': None, 'nll': None}
-for epoch in range(start_epoch, args.epochs + 1):
+
+if start_epoch > args.corrupt_epochs:
+    loaders, num_classes = data.loaders(
+        args.dataset,
+        args.data_path,
+        args.batch_size,
+        args.num_workers,
+        args.transform,
+        args.use_test,
+        corrupt=False
+    )
+
+lr = args.lr
+for epoch in range(start_epoch, args.epochs + args.corrupt_epochs + 1):
+    if epoch == args.corrupt_epochs:
+        loaders, num_classes = data.loaders(
+            args.dataset,
+            args.data_path,
+            args.batch_size,
+            args.num_workers,
+            args.transform,
+            args.use_test,
+            corrupt=False
+        )
+
+        # ?? TODO
+        lr = args.lr
+
     time_ep = time.time()
 
-    lr = learning_rate_schedule(args.lr, epoch, args.epochs)
+    lr = learning_rate_schedule(lr, epoch, args.epochs + 160)
     utils.adjust_learning_rate(optimizer, lr)
 
     train_res = utils.train(loaders['train'], model, optimizer, criterion, regularizer)
