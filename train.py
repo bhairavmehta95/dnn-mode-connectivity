@@ -29,7 +29,7 @@ parser.add_argument('--batch_size', type=int, default=128, metavar='N',
 parser.add_argument('--num-workers', type=int, default=4, metavar='N',
                     help='number of workers (default: 4)')
 
-parser.add_argument('--model', type=str, default='VGG16', metavar='MODEL',
+parser.add_argument('--model', type=str, default='PreResNet20', metavar='MODEL',
                     help='model name (default: None)')
 
 parser.add_argument('--curve', type=str, default=None, metavar='CURVE',
